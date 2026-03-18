@@ -86,13 +86,13 @@ def create_mock_client_factory(response_map):
 async def test_consensus_input_creation():
     """测试 ConsensusInput 数据类的创建"""
     input_data = ConsensusInput(
-        question="如何设计一个高可用的系统？",
+        task="如何设计一个高可用的系统？",
         scene="arch",
     )
 
-    assert input_data.question == "如何设计一个高可用的系统？"
+    assert input_data.task == "如何设计一个高可用的系统？"
     assert input_data.scene == "arch"
-    assert input_data.context == ""
+    assert input_data.content == ""
 
 
 @pytest.mark.asyncio
@@ -263,9 +263,9 @@ async def test_call_model_error_handling(mock_models):
 async def test_run_debate_full_flow(mock_models):
     """测试完整的辩论流程"""
     input_data = ConsensusInput(
-        question="如何设计一个高可用的系统？",
+        task="如何设计一个高可用的系统？",
         scene="arch",
-        context="考虑成本和维护性",
+        content="考虑成本和维护性",
     )
 
     call_count = {"count": 0}
@@ -335,20 +335,21 @@ async def test_run_debate_full_flow(mock_models):
     result = await orchestrator.run_debate(input_data)
 
     assert isinstance(result, ConsensusOutput)
-    assert result.question == "如何设计一个高可用的系统？"
-    assert result.total_models == 2  # 不包含 judge
-    assert result.successful_models == 2
+    assert result.final_consensus != ""
+    assert result.rounds_executed == 3
+    assert len(result.models_participated) == 2
     assert len(result.proposals) == 2
     assert len(result.critiques) == 2
-    assert "微服务" in result.final_answer or "最终共识" in result.final_answer
-    assert result.discussion_summary != ""
+    assert "微服务" in result.final_consensus or "最终共识" in result.final_consensus
+    assert result.debate_summary != ""
+    assert result.total_duration_ms >= 0
 
 
 @pytest.mark.asyncio
 async def test_run_debate_with_model_error(mock_models):
     """测试包含模型错误的辩论流程"""
     input_data = ConsensusInput(
-        question="测试问题",
+        task="测试问题",
         scene="planning",
     )
 
@@ -378,7 +379,7 @@ async def test_run_debate_with_model_error(mock_models):
 
     result = await orchestrator.run_debate(input_data)
 
-    assert result.successful_models == 1
+    assert len(result.models_participated) == 1
     assert len(result.proposals) == 1
     assert "model-b" in result.proposals
 
@@ -409,7 +410,7 @@ async def test_orchestrator_custom_scene(mock_models):
 
     # 验证场景模板被正确使用
     input_data = ConsensusInput(
-        question="如何调试这个bug？",
+        task="如何调试这个bug？",
         scene="debug",
     )
 

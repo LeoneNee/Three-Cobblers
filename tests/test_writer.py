@@ -8,10 +8,11 @@ from consensus_engine.writer import ResultWriter, ConsensusOutput
 def sample_output():
     """创建测试用的 ConsensusOutput 实例"""
     return ConsensusOutput(
-        question="Implement user authentication",
-        final_answer="## Final Plan\n\nThis is the consensus.",
-        total_models=2,
-        successful_models=2,
+        final_consensus="## Final Plan\n\nThis is the consensus.",
+        debate_summary="Model A and B agreed on approach X.",
+        rounds_executed=3,
+        models_participated=["model-a", "model-b"],
+        total_duration_ms=5000,
         proposals={
             "model-a": "Proposal A content",
             "model-b": "Proposal B content",
@@ -20,12 +21,8 @@ def sample_output():
             "model-a": "Critique A content",
             "model-b": "Critique B content",
         },
-        discussion_summary="Model A and B agreed on approach X.",
         metadata={
             "scene": "planning",
-            "rounds_executed": 3,
-            "models_participated": ["model-a", "model-b"],
-            "total_duration_ms": 5000,
         },
     )
 

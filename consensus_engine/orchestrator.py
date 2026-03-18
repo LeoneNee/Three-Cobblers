@@ -8,7 +8,7 @@
 """
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from consensus_engine.client import ModelClient, ModelResponse
@@ -23,13 +23,13 @@ class ConsensusInput:
 
     用于启动辩论流程的输入数据。
     """
-    question: str
-    """需要讨论的问题"""
+    task: str
+    """需要讨论的任务或问题"""
 
     scene: str = "planning"
     """场景类型（planning, review, arch, debug）"""
 
-    context: str = ""
+    content: str = ""
     """额外的上下文信息"""
 
 
@@ -78,22 +78,27 @@ class DebateOrchestrator:
         Returns:
             ConsensusOutput: 包含最终共识和中间过程的输出结果
         """
+        import time
+        start_time = time.time()
+
         # 获取场景模板
         system_prompt = self.template_registry.get_prompt(input_data.scene)
 
         # 第一轮：并发提案
         proposals = await self._round1_proposal(
-            question=input_data.question,
+            question=input_data.task,
             system_prompt=system_prompt,
         )
 
         # 如果没有成功的提案，返回错误结果
         if not proposals:
+            end_time = time.time()
             return ConsensusOutput(
-                question=input_data.question,
-                final_answer="无法生成共识：所有模型调用失败",
-                total_models=len(self.proposer_models),
-                successful_models=0,
+                final_consensus="无法生成共识：所有模型调用失败",
+                debate_summary="所有模型调用失败",
+                rounds_executed=0,
+                models_participated=[],
+                total_duration_ms=int((end_time - start_time) * 1000),
             )
 
         # 第二轮：交叉评审
@@ -103,25 +108,28 @@ class DebateOrchestrator:
         )
 
         # 第三轮：合成共识
-        final_answer = await self._round3_consensus(
-            question=input_data.question,
-            context=input_data.context,
+        final_consensus = await self._round3_consensus(
+            question=input_data.task,
+            context=input_data.content,
             proposals=proposals,
             critiques=critiques,
             system_prompt=system_prompt,
         )
 
         # 构建讨论摘要
-        discussion_summary = self._build_summary(proposals, critiques)
+        debate_summary = self._build_summary(proposals, critiques)
+
+        end_time = time.time()
+        total_duration_ms = int((end_time - start_time) * 1000)
 
         return ConsensusOutput(
-            question=input_data.question,
-            final_answer=final_answer,
-            total_models=len(self.proposer_models),
-            successful_models=len(proposals),
+            final_consensus=final_consensus,
+            debate_summary=debate_summary,
+            rounds_executed=3,
+            models_participated=list(proposals.keys()),
+            total_duration_ms=total_duration_ms,
             proposals=proposals,
             critiques=critiques,
-            discussion_summary=discussion_summary,
             metadata={
                 "scene": input_data.scene,
                 "judge_model": self.judge_model.name,

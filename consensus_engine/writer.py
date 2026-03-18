@@ -17,26 +17,26 @@ class ConsensusOutput:
 
     包含多轮辩论后的最终共识结果和中间过程。
     """
-    question: str
-    """原始问题"""
-
-    final_answer: str
+    final_consensus: str
     """最终共识答案"""
 
-    total_models: int
-    """参与辩论的模型数量"""
+    debate_summary: str
+    """讨论摘要（包含提案和评审的总结）"""
 
-    successful_models: int
-    """成功参与辩论的模型数量（排除错误）"""
+    rounds_executed: int
+    """执行的辩论轮数"""
+
+    models_participated: List[str]
+    """参与辩论的模型名称列表"""
+
+    total_duration_ms: int
+    """总执行时间（毫秒）"""
 
     proposals: Dict[str, str] = field(default_factory=dict)
     """第一轮：各模型的提案 {model_name: proposal}"""
 
     critiques: Dict[str, str] = field(default_factory=dict)
     """第二轮：交叉评审 {model_name: critique}"""
-
-    discussion_summary: str = ""
-    """讨论摘要（包含提案和评审的总结）"""
 
     confidence_score: Optional[float] = None
     """共识置信度（0-1），可选"""
@@ -155,28 +155,23 @@ class ResultWriter:
             "",
             "---",
             "",
-            "## 原始问题",
-            "",
-            output.question,
-            "",
-            "---",
-            "",
             "## 最终共识",
             "",
-            output.final_answer,
+            output.final_consensus,
             "",
             "---",
             "",
             "## 讨论摘要",
             "",
-            output.discussion_summary,
+            output.debate_summary,
             "",
             "---",
             "",
             "## 统计信息",
             "",
-            f"- **参与模型数**: {output.total_models}",
-            f"- **成功模型数**: {output.successful_models}",
+            f"- **执行轮数**: {output.rounds_executed}",
+            f"- **参与模型**: {', '.join(output.models_participated)}",
+            f"- **总耗时**: {output.total_duration_ms} ms",
         ]
 
         # 添加元数据信息
