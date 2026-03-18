@@ -47,3 +47,44 @@ def test_template_registry_get_supported_scenes():
     assert "review" in scenes
     assert "arch" in scenes
     assert "debug" in scenes
+
+
+def test_template_registry_has_scene():
+    """测试has_scene方法"""
+    registry = TemplateRegistry()
+
+    # 测试已存在的场景
+    assert registry.has_scene("planning") is True
+    assert registry.has_scene("review") is True
+    assert registry.has_scene("arch") is True
+    assert registry.has_scene("debug") is True
+
+    # 测试不存在的场景
+    assert registry.has_scene("invalid") is False
+    assert registry.has_scene("") is False
+    assert registry.has_scene("nonexistent") is False
+
+
+def test_template_registry_register_template():
+    """测试register_template方法"""
+    registry = TemplateRegistry()
+
+    # 测试注册新模板
+    registry.register_template("custom", "自定义模板内容")
+    assert registry.has_scene("custom") is True
+    assert registry.get_prompt("custom") == "自定义模板内容"
+
+    # 测试更新已存在的模板
+    registry.register_template("planning", "更新后的planning模板")
+    assert registry.get_prompt("planning") == "更新后的planning模板"
+
+    # 测试注册后的模板出现在支持列表中
+    scenes = registry.get_supported_scenes()
+    assert "custom" in scenes
+
+    # 测试多个自定义模板
+    registry.register_template("scene1", "模板1")
+    registry.register_template("scene2", "模板2")
+    assert registry.has_scene("scene1") is True
+    assert registry.has_scene("scene2") is True
+    assert len(registry.get_supported_scenes()) >= 6  # 原始4个 + 3个新注册的

@@ -3,7 +3,7 @@ import pytest
 import httpx
 import respx
 from consensus_engine.config import ModelConfig
-from consensus_engine.client import ModelClient, ModelResponse
+from consensus_engine.client import ModelClient
 
 
 @pytest.mark.asyncio

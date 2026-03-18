@@ -3,6 +3,11 @@ import asyncio
 from dataclasses import dataclass
 from typing import Optional
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 import httpx
 
 from consensus_engine.config import ModelConfig
@@ -110,14 +115,14 @@ class ModelClient:
             error=last_error or "Unknown error",
         )
 
-    async def close(self):
+    async def close(self) -> None:
         """关闭 HTTP 客户端"""
         if self._client:
             await self._client.aclose()
             self._client = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self.close()
