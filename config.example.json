@@ -1,0 +1,22 @@
+[
+  {
+    "name": "deepseek-v3",
+    "url": "https://api.deepseek.com/v1/chat/completions",
+    "key": "sk-your-api-key-here",
+    "provider": "openai",
+    "timeout": 60,
+    "max_retries": 2
+  },
+  {
+    "name": "qwen-max",
+    "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    "key": "sk-your-api-key-here",
+    "provider": "openai"
+  },
+  {
+    "name": "llama3-70b",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "key": "sk-your-api-key-here",
+    "provider": "openai"
+  }
+]
