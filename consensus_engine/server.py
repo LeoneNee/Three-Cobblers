@@ -5,14 +5,11 @@
 """
 
 import argparse
-import asyncio
-from typing import Optional
 
 from fastmcp import FastMCP
 
 from consensus_engine.config import ConfigManager
 from consensus_engine.orchestrator import DebateOrchestrator, ConsensusInput
-from consensus_engine.templates import TemplateRegistry
 from consensus_engine.writer import ResultWriter
 
 
@@ -92,7 +89,7 @@ def _format_result(output, output_path: str) -> str:
         str: 格式化的 Markdown 文本
     """
     parts = [
-        f"## 共识结果已生成",
+        "## 共识结果已生成",
         "",
         f"**输出文件**: `{output_path}`",
         "",
@@ -140,9 +137,7 @@ def main():
     --port: 端口号（仅用于 sse），默认为 8000
     --log-level: 日志级别（DEBUG, INFO, WARNING, ERROR），默认为 INFO
     """
-    parser = argparse.ArgumentParser(
-        description="Consensus Engine MCP Server - 多模型共识辩论服务"
-    )
+    parser = argparse.ArgumentParser(description="Consensus Engine MCP Server - 多模型共识辩论服务")
     parser.add_argument(
         "--transport",
         type=str,

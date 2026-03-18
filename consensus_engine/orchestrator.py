@@ -23,6 +23,7 @@ class ConsensusInput:
 
     用于启动辩论流程的输入数据。
     """
+
     task: str
     """需要讨论的任务或问题"""
 
@@ -64,9 +65,7 @@ class DebateOrchestrator:
         self._client_factory = client_factory or ModelClient
 
         # 分离提案者和 judge
-        self.proposer_models = [
-            m for i, m in enumerate(models) if i != self.judge_index
-        ]
+        self.proposer_models = [m for i, m in enumerate(models) if i != self.judge_index]
         self.judge_model = models[self.judge_index]
 
     async def run_debate(self, input_data: ConsensusInput) -> ConsensusOutput:
@@ -79,6 +78,7 @@ class DebateOrchestrator:
             ConsensusOutput: 包含最终共识和中间过程的输出结果
         """
         import time
+
         start_time = time.time()
 
         # 获取场景模板
@@ -201,9 +201,7 @@ class DebateOrchestrator:
             target_name = model_names[(i + 1) % len(model_names)]
             target_proposal = proposals[target_name]
 
-            reviewer_model = next(
-                m for m in self.proposer_models if m.name == reviewer_name
-            )
+            reviewer_model = next(m for m in self.proposer_models if m.name == reviewer_name)
             client = self._client_factory(reviewer_model)
 
             # 构建评审提示词

@@ -17,6 +17,7 @@ class ConsensusOutput:
 
     包含多轮辩论后的最终共识结果和中间过程。
     """
+
     final_consensus: str
     """最终共识答案"""
 
@@ -80,13 +81,13 @@ class ResultWriter:
             清理后的文件名
         """
         # 移除或替换特殊字符
-        sanitized = re.sub(r'[^\w\s-]', '', task)
+        sanitized = re.sub(r"[^\w\s-]", "", task)
         # 将空白字符替换为短横线
-        sanitized = re.sub(r'[\s]+', '-', sanitized)
+        sanitized = re.sub(r"[\s]+", "-", sanitized)
         # 移除连续的短横线
-        sanitized = re.sub(r'-+', '-', sanitized)
+        sanitized = re.sub(r"-+", "-", sanitized)
         # 去除首尾短横线
-        sanitized = sanitized.strip('-')
+        sanitized = sanitized.strip("-")
         # 限制长度
         if len(sanitized) > 50:
             sanitized = sanitized[:50]

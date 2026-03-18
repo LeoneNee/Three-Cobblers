@@ -2,13 +2,11 @@
 """测试辩论编排器模块"""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, AsyncMock as MockAsyncMock
-from dataclasses import asdict
 
 import pytest
 
 from consensus_engine.orchestrator import DebateOrchestrator, ConsensusInput
-from consensus_engine.client import ModelClient, ModelResponse
+from consensus_engine.client import ModelResponse
 from consensus_engine.config import ModelConfig
 from consensus_engine.writer import ConsensusOutput
 
@@ -77,8 +75,10 @@ def mock_orchestrator(mock_models):
 
 def create_mock_client_factory(response_map):
     """创建模拟客户端工厂"""
+
     def factory(model):
         return MockModelClient(model, response_map)
+
     return factory
 
 
@@ -409,11 +409,6 @@ async def test_orchestrator_custom_scene(mock_models):
     assert orchestrator.scene == "debug"
 
     # 验证场景模板被正确使用
-    input_data = ConsensusInput(
-        task="如何调试这个bug？",
-        scene="debug",
-    )
-
     proposals = await orchestrator._round1_proposal(question="如何调试这个bug？")
 
     assert len(proposals) == 2

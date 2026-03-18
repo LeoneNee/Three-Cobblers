@@ -2,7 +2,6 @@
 """集成测试：测试完整的辩论流程"""
 
 import asyncio
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -227,9 +226,7 @@ async def test_full_debate_flow_success(integration_models, debate_responses):
 
     # 验证最终共识包含关键要素
     consensus = result.final_consensus
-    assert any(keyword in consensus for keyword in [
-        "架构", "演进", "微服务", "模块", "原则"
-    ])
+    assert any(keyword in consensus for keyword in ["架构", "演进", "微服务", "模块", "原则"])
 
 
 @pytest.mark.integration
@@ -273,13 +270,16 @@ async def test_full_debate_flow_with_retry(integration_models):
     def create_client(model):
         if model.name == "expert-architect":
             return MockModelClient(model, retry_responses)
-        return MockModelClient(model, [
-            ModelResponse(
-                content=f"Response from {model.name}",
-                model_name=model.name,
-                error=None,
-            )
-        ])
+        return MockModelClient(
+            model,
+            [
+                ModelResponse(
+                    content=f"Response from {model.name}",
+                    model_name=model.name,
+                    error=None,
+                )
+            ],
+        )
 
     orchestrator = DebateOrchestrator(
         models=integration_models,

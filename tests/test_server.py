@@ -1,9 +1,7 @@
 # tests/test_server.py
 """测试 MCP Server 模块"""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
 
 import pytest
 
@@ -235,7 +233,9 @@ def test_server_tool_metadata():
     """测试工具函数具有正确的元数据"""
     # 验证函数存在且具有文档字符串
     assert run_consensus_debate.__doc__ is not None
-    assert "共识" in run_consensus_debate.__doc__ or "debate" in run_consensus_debate.__doc__.lower()
+    assert (
+        "共识" in run_consensus_debate.__doc__ or "debate" in run_consensus_debate.__doc__.lower()
+    )
 
 
 @pytest.mark.asyncio

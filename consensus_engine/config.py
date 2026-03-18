@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
+
 class ModelConfig(BaseModel):
     """单个模型配置"""
+
     name: str = Field(..., description="模型标识名称")
     url: str = Field(..., description="API endpoint URL")
     key: str = Field(..., description="API密钥")
@@ -16,6 +18,7 @@ class ModelConfig(BaseModel):
     )
     timeout: int = Field(default=60, description="请求超时时间(秒)")
     max_retries: int = Field(default=2, description="最大重试次数")
+
 
 class ConfigManager:
     """模型配置管理器"""
@@ -42,7 +45,9 @@ class ConfigManager:
                 data = json.loads(self.config_path.read_text())
                 return [ModelConfig(**m) for m in data]
             except (json.JSONDecodeError, ValidationError):
-                self._print_error_and_exit(f"配置文件 {self.config_path} 格式错误，请检查 JSON 格式和字段")
+                self._print_error_and_exit(
+                    f"配置文件 {self.config_path} 格式错误，请检查 JSON 格式和字段"
+                )
 
         # 3. 无配置可用
         self._print_config_guide_and_exit()
@@ -54,7 +59,8 @@ class ConfigManager:
 
     def _print_config_guide_and_exit(self):
         """打印配置教程并退出"""
-        print("""[Consensus-Engine] 缺少模型配置！
+        print(
+            """[Consensus-Engine] 缺少模型配置！
 
 请通过以下方式之一配置模型：
 
@@ -72,5 +78,7 @@ export MCP_MODELS='[
 ]
 
 参考: config.example.json
-""", file=sys.stderr)
+""",
+            file=sys.stderr,
+        )
         sys.exit(1)

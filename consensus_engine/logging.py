@@ -3,6 +3,7 @@ import logging
 import sys
 import structlog
 
+
 def setup_logging(level: str = "INFO"):
     """配置结构化日志
 
@@ -25,7 +26,11 @@ def setup_logging(level: str = "INFO"):
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
-            structlog.processors.JSONRenderer() if level != "DEBUG" else structlog.dev.ConsoleRenderer(),
+            (
+                structlog.processors.JSONRenderer()
+                if level != "DEBUG"
+                else structlog.dev.ConsoleRenderer()
+            ),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,

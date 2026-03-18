@@ -16,6 +16,7 @@ from consensus_engine.config import ModelConfig
 @dataclass
 class ModelResponse:
     """模型响应结果"""
+
     content: str
     model_name: str
     error: Optional[str] = None
