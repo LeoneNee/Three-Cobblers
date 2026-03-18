@@ -1,110 +1,61 @@
-# tests/test_writer.py
 import pytest
 from pathlib import Path
-from consensus_engine.writer import ResultWriter, ConsensusOutput
+from consensus_engine.writer import write_consensus, build_markdown
 
 
-@pytest.fixture
-def sample_output():
-    """创建测试用的 ConsensusOutput 实例"""
-    return ConsensusOutput(
-        final_consensus="## Final Plan\n\nThis is the consensus.",
-        debate_summary="Model A and B agreed on approach X.",
-        rounds_executed=3,
-        models_participated=["model-a", "model-b"],
-        total_duration_ms=5000,
-        proposals={
-            "model-a": "Proposal A content",
-            "model-b": "Proposal B content",
-        },
-        critiques={
-            "model-a": "Critique A content",
-            "model-b": "Critique B content",
-        },
-        metadata={
-            "scene": "planning",
-        },
-    )
+SCENE_DIR_MAP = {
+    "planning": "plans",
+    "review": "reviews",
+    "arch": "archs",
+    "debug": "debugs",
+}
 
 
-def test_writer_creates_directory(tmp_path, sample_output):
-    """测试写入器创建目录"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    output_path = writer.write(
-        scene="planning",
-        task="Implement user authentication",
-        output=sample_output,
-    )
-    assert Path(output_path).exists()
-    assert "plans" in output_path
-
-
-def test_writer_filename_format(tmp_path, sample_output):
-    """测试文件名格式化（特殊字符处理）"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    output_path = writer.write(
-        scene="review",
-        task="Fix login bug!! @#$",
-        output=sample_output,
-    )
-    filename = Path(output_path).name
-    assert "review" in filename
-    assert ".md" in filename
-    assert "@" not in filename
-    assert "#" not in filename
-    assert "!" not in filename
-
-
-def test_writer_content_format(tmp_path, sample_output):
-    """测试输出内容格式"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    output_path = writer.write(
-        scene="planning",
-        task="Test task",
-        output=sample_output,
-    )
-    content = Path(output_path).read_text()
-    assert "# PLANNING 共识报告" in content
-    assert "Test task" in content
-    assert "## Final Plan" in content
-    assert "Model A and B agreed on approach X" in content
-
-
-def test_scene_directory_mapping(tmp_path, sample_output):
-    """测试场景到目录的映射"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    scenes = ["planning", "review", "arch", "debug"]
-    for scene in scenes:
-        output_path = writer.write(
-            scene=scene,
-            task=f"Test {scene}",
-            output=sample_output,
+class TestBuildMarkdown:
+    def test_contains_all_sections(self):
+        md = build_markdown(
+            task="设计登录",
+            scene="planning",
+            models=["deepseek", "qwen"],
+            final_plan="最终方案内容",
+            proposals={"deepseek": "提案A", "qwen": "提案B"},
+            reviews={"deepseek": "评审A", "qwen": "评审B"},
         )
-        assert scene in output_path
+        assert "设计登录" in md
+        assert "planning" in md
+        assert "最终方案内容" in md
+        assert "deepseek" in md
+        assert "提案A" in md
+        assert "评审A" in md
 
 
-def test_writer_includes_metadata(tmp_path, sample_output):
-    """测试元数据包含在输出中"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    output_path = writer.write(
-        scene="planning",
-        task="Test metadata",
-        output=sample_output,
-    )
-    content = Path(output_path).read_text()
-    assert "model-a" in content
-    assert "model-b" in content
+class TestWriteConsensus:
+    @pytest.mark.parametrize("scene,subdir", SCENE_DIR_MAP.items())
+    def test_creates_file_in_correct_directory(self, tmp_path, scene, subdir):
+        path = write_consensus(
+            project_root=tmp_path,
+            scene=scene,
+            task="测试任务",
+            models=["a", "b"],
+            final_plan="内容",
+            proposals={"a": "pa", "b": "pb"},
+            reviews={"a": "ra", "b": "rb"},
+        )
+        assert path.exists()
+        assert f"docs/{subdir}/" in str(path)
+        assert path.suffix == ".md"
+        content = path.read_text()
+        assert "测试任务" in content
 
-
-def test_writer_creates_nested_directories(tmp_path, sample_output):
-    """测试创建嵌套目录"""
-    writer = ResultWriter(root_dir=str(tmp_path))
-    output_path = writer.write(
-        scene="planning",
-        task="Nested directory test",
-        output=sample_output,
-    )
-    # 验证父目录存在
-    parent_dir = Path(output_path).parent
-    assert parent_dir.exists()
-    assert parent_dir.name == "plans"
+    def test_filename_format(self, tmp_path):
+        path = write_consensus(
+            project_root=tmp_path,
+            scene="planning",
+            task="t",
+            models=["a", "b"],
+            final_plan="c",
+            proposals={"a": "p"},
+            reviews={"a": "r"},
+        )
+        assert "_plan.md" in path.name
+        assert len(path.stem.split("_")[0]) == 8  # YYYYMMDD
