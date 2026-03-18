@@ -1,45 +1,6 @@
-# 配置文件
-config.json
-.env
-
-# Python 编译文件
-*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-
-# 缓存目录
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-.coverage
-htmlcov/
-.benchmarks/
-
-# 虚拟环境
-venv/
-env/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# 操作系统
-.DS_Store
-Thumbs.db
-
-# 临时文件
-tmp/
-temp/
-*.tmp
-
-# 测试和覆盖率
-.pytest_cache/
-.coverage
-htmlcov/
+*.pyc
+.venv/
 *.egg-info/
 dist/
-build/
+.pytest_cache/
