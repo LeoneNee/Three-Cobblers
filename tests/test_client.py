@@ -1,58 +1,54 @@
-# tests/test_client.py
-import pytest
 import httpx
+import pytest
 import respx
-from consensus_engine.config import ModelConfig
 from consensus_engine.client import ModelClient
+from consensus_engine.config import ModelConfig
 
 
-@pytest.mark.asyncio
-async def test_model_client_basic_call(respx_mock):
-    model = ModelConfig(
-        name="test-model", url="https://api.example.com/v1/chat/completions", key="sk-test"
+@pytest.fixture
+def model_config():
+    return ModelConfig(
+        name="test-model",
+        endpoint="https://api.test.com/v1/chat/completions",
+        api_key="sk-test",
+        model="test-v1",
     )
-    respx.post("https://api.example.com/v1/chat/completions").mock(
-        return_value=httpx.Response(
-            200, json={"choices": [{"message": {"content": "Test response"}}]}
+
+
+@pytest.fixture
+def client(model_config):
+    return ModelClient(model_config, timeout=5.0)
+
+
+class TestModelClient:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_chat_success(self, client, model_config):
+        respx.post(model_config.endpoint).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"content": "test response"}}
+                    ]
+                },
+            )
         )
-    )
-    client = ModelClient(model)
-    response = await client.call("Hello", system_prompt="You are helpful")
-    assert response.content == "Test response"
-    assert response.model_name == "test-model"
-    assert response.error is None
+        result = await client.chat("You are a helpful assistant.", "Hello")
+        assert result == "test response"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_chat_api_error(self, client, model_config):
+        respx.post(model_config.endpoint).mock(
+            return_value=httpx.Response(500, text="Internal Server Error")
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.chat("system", "user")
 
-@pytest.mark.asyncio
-async def test_model_client_retry_on_failure(respx_mock):
-    model = ModelConfig(
-        name="test-model",
-        url="https://api.example.com/v1/chat/completions",
-        key="sk-test",
-        max_retries=2,
-    )
-    route = respx.post("https://api.example.com/v1/chat/completions")
-    route.side_effect = [
-        httpx.Response(500),
-        httpx.Response(200, json={"choices": [{"message": {"content": "Success"}}]}),
-    ]
-    client = ModelClient(model)
-    response = await client.call("Hello")
-    assert response.content == "Success"
-    assert route.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_model_client_exhausted_retries(respx_mock):
-    model = ModelConfig(
-        name="test-model",
-        url="https://api.example.com/v1/chat/completions",
-        key="sk-test",
-        max_retries=1,
-    )
-    respx.post("https://api.example.com/v1/chat/completions").mock(return_value=httpx.Response(500))
-    client = ModelClient(model)
-    response = await client.call("Hello")
-    assert response.content == ""
-    assert response.error is not None
-    assert "500" in response.error
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_chat_timeout(self, client, model_config):
+        respx.post(model_config.endpoint).mock(side_effect=httpx.ReadTimeout("timeout"))
+        with pytest.raises(httpx.ReadTimeout):
+            await client.chat("system", "user")
