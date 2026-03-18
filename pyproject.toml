@@ -15,6 +15,12 @@ dev = [
     "respx>=0.22.0",
 ]
 
+[project.scripts]
+consensus-engine = "consensus_engine.server:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
