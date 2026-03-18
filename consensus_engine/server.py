@@ -1,178 +1,84 @@
-# consensus_engine/server.py
-"""MCP Server 模块 - FastMCP 服务器实现
+"""FastMCP 服务器入口。"""
 
-本模块实现了基于 FastMCP 的 MCP 服务器，提供 run_consensus_debate 工具。
-"""
-
-import argparse
+import sys
+from typing import Literal
 
 from fastmcp import FastMCP
 
-from consensus_engine.config import ConfigManager
-from consensus_engine.orchestrator import DebateOrchestrator, ConsensusInput
-from consensus_engine.writer import ResultWriter
+from consensus_engine.config import load_model_configs, load_project_root
+from consensus_engine.orchestrator import run_debate
+from consensus_engine.writer import write_consensus
 
 
-async def run_consensus_debate(
-    task: str,
-    scene: str = "planning",
-    content: str = "",
-    output_dir: str = "docs",
-) -> str:
-    """运行多模型共识辩论
+def create_app() -> FastMCP:
+    """创建并配置 FastMCP 应用实例。"""
+    configs = load_model_configs()
+    project_root = load_project_root()
 
-    通过多模型三轮辩论（提案 -> 评审 -> 共识）生成高质量的共识答案。
-
-    Args:
-        task: 需要讨论的任务或问题
-        scene: 场景类型（planning, review, arch, debug），默认为 planning
-        content: 额外的上下文信息，可选
-        output_dir: 输出目录，默认为 docs
-
-    Returns:
-        str: 格式化的 Markdown 结果，包含最终共识、讨论摘要和统计信息
-    """
-    # 1. 加载模型配置
-    config_manager = ConfigManager()
-    models = config_manager.get_models()
-
-    # 2. 创建辩论编排器
-    orchestrator = DebateOrchestrator(
-        models=models,
-        scene=scene,
+    model_names = [c.name for c in configs]
+    judge_name = next(c.name for c in configs if c.role == "judge")
+    print(
+        f"[consensus-engine] 已加载 {len(configs)} 个模型：{model_names}，Judge：{judge_name}",
+        file=sys.stderr,
     )
 
-    # 3. 运行辩论流程
-    input_data = ConsensusInput(
-        task=task,
-        scene=scene,
-        content=content,
-    )
-
-    output = await orchestrator.run_debate(input_data)
-
-    # 4. 写入结果文件
-    writer = ResultWriter(root_dir=output_dir)
-    output_path = writer.write(
-        scene=scene,
-        task=task,
-        output=output,
-    )
-
-    # 5. 返回格式化的 Markdown 结果
-    return _format_result(output, output_path)
-
-
-def create_server() -> FastMCP:
-    """创建 FastMCP 服务器实例
-
-    Returns:
-        FastMCP: 配置好的 MCP 服务器实例
-    """
-    # 创建 FastMCP 服务器
     mcp = FastMCP("consensus-engine")
 
-    # 注册工具：运行共识辩论
-    mcp.add_tool(run_consensus_debate)
+    @mcp.tool()
+    async def run_consensus_debate(
+        task: str,
+        content: str,
+        scene: Literal["planning", "review", "arch", "debug"],
+        review_mode: Literal["summarized", "full"] = "summarized",
+    ) -> dict:
+        """运行多模型共识博弈。
+
+        并发调用多个 AI 模型进行三阶段博弈（提案→评审→汇总），
+        输出共识方案并自动存档到本地 docs/ 目录。
+
+        Args:
+            task: 核心任务描述
+            content: 相关代码或上下文
+            scene: 场景类型 (planning/review/arch/debug)
+            review_mode: 评审模式 (summarized/full)，默认 summarized
+        """
+        result = await run_debate(
+            configs=configs,
+            task=task,
+            content=content,
+            scene=scene,
+            review_mode=review_mode,
+        )
+
+        filepath = write_consensus(
+            project_root=project_root,
+            scene=scene,
+            task=task,
+            models=result.models_participated,
+            final_plan=result.final_plan,
+            proposals=result.proposals,
+            reviews=result.reviews,
+        )
+
+        relative_path = filepath.relative_to(project_root)
+        print(
+            f"[Done] 共识结论已保存至 {relative_path}",
+            file=sys.stderr,
+        )
+
+        return {
+            "final_plan": result.final_plan,
+            "file_path": str(relative_path),
+            "models_participated": result.models_participated,
+            "models_failed": result.models_failed,
+        }
 
     return mcp
 
 
-def _format_result(output, output_path: str) -> str:
-    """格式化输出结果为 Markdown
-
-    Args:
-        output: ConsensusOutput 实例
-        output_path: 输出文件路径
-
-    Returns:
-        str: 格式化的 Markdown 文本
-    """
-    parts = [
-        "## 共识结果已生成",
-        "",
-        f"**输出文件**: `{output_path}`",
-        "",
-        "---",
-        "",
-        "## 最终共识",
-        "",
-        output.final_consensus,
-        "",
-        "---",
-        "",
-        "## 讨论摘要",
-        "",
-        output.debate_summary,
-        "",
-        "---",
-        "",
-        "## 统计信息",
-        "",
-        f"- **执行轮数**: {output.rounds_executed}",
-        f"- **参与模型**: {', '.join(output.models_participated)}",
-        f"- **总耗时**: {output.total_duration_ms} ms",
-    ]
-
-    # 添加元数据
-    if output.metadata:
-        parts.append("")
-        parts.append("## 元数据")
-        parts.append("")
-        for key, value in output.metadata.items():
-            if isinstance(value, list):
-                value_str = ", ".join(str(v) for v in value)
-            else:
-                value_str = str(value)
-            parts.append(f"- **{key}**: {value_str}")
-
-    return "\n".join(parts)
-
-
 def main():
-    """CLI 入口点
-
-    启动 MCP 服务器，支持以下参数：
-    --transport: 传输协议（stdio 或 sse），默认为 stdio
-    --port: 端口号（仅用于 sse），默认为 8000
-    --log-level: 日志级别（DEBUG, INFO, WARNING, ERROR），默认为 INFO
-    """
-    parser = argparse.ArgumentParser(description="Consensus Engine MCP Server - 多模型共识辩论服务")
-    parser.add_argument(
-        "--transport",
-        type=str,
-        default="stdio",
-        choices=["stdio", "sse"],
-        help="传输协议：stdio（标准输入输出）或 sse（服务器发送事件）",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="端口号（仅用于 sse 传输）",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="日志级别",
-    )
-
-    args = parser.parse_args()
-
-    # 创建服务器
-    server = create_server()
-
-    # 根据传输协议启动服务器
-    if args.transport == "stdio":
-        # stdio 模式：通过标准输入输出通信
-        server.run(transport="stdio")
-    elif args.transport == "sse":
-        # sse 模式：通过 HTTP 服务器通信
-        server.run(transport="sse", port=args.port, log_level=args.log_level)
-    else:
-        parser.error(f"不支持的传输协议: {args.transport}")
+    app = create_app()
+    app.run(transport="stdio")
 
 
 if __name__ == "__main__":
