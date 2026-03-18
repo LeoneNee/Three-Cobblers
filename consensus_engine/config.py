@@ -1,84 +1,71 @@
-# consensus_engine/config.py
+"""配置解析：从环境变量加载模型配置和项目根目录。"""
+
+import json
 import os
 import sys
-import json
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
-from pydantic import BaseModel, Field, ValidationError
 
 
-class ModelConfig(BaseModel):
-    """单个模型配置"""
-
-    name: str = Field(..., description="模型标识名称")
-    url: str = Field(..., description="API endpoint URL")
-    key: str = Field(..., description="API密钥")
-    provider: Literal["openai", "anthropic", "ollama"] = Field(
-        default="openai", description="API提供商类型"
-    )
-    timeout: int = Field(default=60, description="请求超时时间(秒)")
-    max_retries: int = Field(default=2, description="最大重试次数")
+@dataclass(frozen=True)
+class ModelConfig:
+    name: str
+    endpoint: str
+    api_key: str
+    model: str
+    role: str = "participant"
 
 
-class ConfigManager:
-    """模型配置管理器"""
-
-    DEFAULT_CONFIG_PATH = "config.json"
-
-    def __init__(self, config_path: str | None = None):
-        self.config_path = Path(config_path) if config_path else Path(self.DEFAULT_CONFIG_PATH)
-
-    def get_models(self) -> list[ModelConfig]:
-        """加载模型配置，优先从环境变量，回退到配置文件"""
-        # 1. 尝试从环境变量读取
-        env_config = os.environ.get("MCP_MODELS")
-        if env_config:
-            try:
-                data = json.loads(env_config)
-                return [ModelConfig(**m) for m in data]
-            except (json.JSONDecodeError, ValidationError):
-                self._print_error_and_exit("环境变量 MCP_MODELS 格式错误，请检查 JSON 格式和字段")
-
-        # 2. 回退到配置文件
-        if self.config_path.exists():
-            try:
-                data = json.loads(self.config_path.read_text())
-                return [ModelConfig(**m) for m in data]
-            except (json.JSONDecodeError, ValidationError):
-                self._print_error_and_exit(
-                    f"配置文件 {self.config_path} 格式错误，请检查 JSON 格式和字段"
-                )
-
-        # 3. 无配置可用
-        self._print_config_guide_and_exit()
-
-    def _print_error_and_exit(self, message: str):
-        """打印错误信息并退出"""
-        print(f"[Consensus-Engine] {message}", file=sys.stderr)
-        sys.exit(1)
-
-    def _print_config_guide_and_exit(self):
-        """打印配置教程并退出"""
+def load_model_configs() -> list[ModelConfig]:
+    """从 LOCAL_MODEL_CONFIGS 环境变量解析模型配置列表。"""
+    raw = os.environ.get("LOCAL_MODEL_CONFIGS")
+    if not raw:
         print(
-            """[Consensus-Engine] 缺少模型配置！
-
-请通过以下方式之一配置模型：
-
-方式1: 环境变量（推荐）
-export MCP_MODELS='[
-  {"name": "deepseek-v3", "url": "https://api.deepseek.com/v1/chat/completions", "key": "sk-xxx"},
-  {"name": "qwen-max", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "key": "sk-xxx"}
-]'
-
-方式2: 配置文件
-创建 config.json:
-[
-  {"name": "deepseek-v3", "url": "https://api.deepseek.com/v1/chat/completions", "key": "sk-xxx"},
-  {"name": "qwen-max", "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "key": "sk-xxx"}
-]
-
-参考: config.example.json
-""",
+            "[consensus-engine] 错误：缺少 LOCAL_MODEL_CONFIGS 环境变量。\n"
+            "请通过 claude mcp add 配置，格式为 JSON 数组：\n"
+            '[{"name":"...", "endpoint":"...", "api_key":"...", "model":"...", "role":"judge"}]',
             file=sys.stderr,
         )
         sys.exit(1)
+
+    try:
+        items = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"LOCAL_MODEL_CONFIGS JSON 解析失败：{e}")
+
+    required_fields = {"name", "endpoint", "api_key", "model"}
+    configs = []
+    for item in items:
+        missing = required_fields - set(item.keys())
+        if missing:
+            raise ValueError(f"模型配置缺少必填字段：{missing}（模型：{item.get('name', '?')}）")
+        configs.append(
+            ModelConfig(
+                name=item["name"],
+                endpoint=item["endpoint"],
+                api_key=item["api_key"],
+                model=item["model"],
+                role=item.get("role", "participant"),
+            )
+        )
+
+    if len(configs) < 2:
+        raise ValueError("至少需要 2 个模型配置")
+
+    judges = [c for c in configs if c.role == "judge"]
+    if len(judges) != 1:
+        raise ValueError(f"恰好需要 1 个 judge 模型，当前有 {len(judges)} 个")
+
+    return configs
+
+
+def load_project_root() -> Path:
+    """从 PROJECT_ROOT 环境变量获取项目根目录，缺失则 fallback 到 cwd。"""
+    root = os.environ.get("PROJECT_ROOT")
+    if root:
+        return Path(root)
+    print(
+        "[consensus-engine] 警告：未设置 PROJECT_ROOT，使用当前工作目录。",
+        file=sys.stderr,
+    )
+    return Path.cwd()

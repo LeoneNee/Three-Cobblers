@@ -1,59 +1,77 @@
-# tests/test_config.py
+import json
+import os
 import pytest
-from pydantic import ValidationError
-from consensus_engine.config import ModelConfig, ConfigManager
+from consensus_engine.config import load_model_configs, load_project_root, ModelConfig
 
 
-def test_model_config_valid():
-    """测试有效的模型配置"""
-    config = ModelConfig(name="test-model", url="https://api.example.com/v1/chat", key="sk-test")
-    assert config.name == "test-model"
-    assert config.provider == "openai"  # default
-    assert config.timeout == 60  # default
+VALID_CONFIGS = [
+    {
+        "name": "deepseek",
+        "endpoint": "https://api.deepseek.com/v1/chat/completions",
+        "api_key": "sk-test1",
+        "model": "deepseek-chat",
+        "role": "judge",
+    },
+    {
+        "name": "qwen",
+        "endpoint": "https://api.qwen.com/v1/chat/completions",
+        "api_key": "sk-test2",
+        "model": "qwen-plus",
+    },
+]
 
 
-def test_model_config_missing_required():
-    """测试缺少必填字段的模型配置"""
-    with pytest.raises(ValidationError):
-        ModelConfig(name="test", url="https://example.com")
-    # missing 'key'
+class TestLoadModelConfigs:
+    def test_valid_configs(self, monkeypatch):
+        monkeypatch.setenv("LOCAL_MODEL_CONFIGS", json.dumps(VALID_CONFIGS))
+        configs = load_model_configs()
+        assert len(configs) == 2
+        assert configs[0].name == "deepseek"
+        assert configs[0].role == "judge"
+        assert configs[1].role == "participant"
+
+    def test_missing_env_var(self, monkeypatch):
+        monkeypatch.delenv("LOCAL_MODEL_CONFIGS", raising=False)
+        with pytest.raises(SystemExit):
+            load_model_configs()
+
+    def test_less_than_two_models(self, monkeypatch):
+        monkeypatch.setenv("LOCAL_MODEL_CONFIGS", json.dumps([VALID_CONFIGS[0]]))
+        with pytest.raises(ValueError, match="至少需要 2 个模型"):
+            load_model_configs()
+
+    def test_no_judge(self, monkeypatch):
+        configs_no_judge = [
+            {**c, "role": "participant"} if "role" in c else c
+            for c in VALID_CONFIGS
+        ]
+        for c in configs_no_judge:
+            c.pop("role", None)
+        monkeypatch.setenv("LOCAL_MODEL_CONFIGS", json.dumps(configs_no_judge))
+        with pytest.raises(ValueError, match="恰好需要 1 个 judge"):
+            load_model_configs()
+
+    def test_multiple_judges(self, monkeypatch):
+        configs_two_judges = [
+            {**c, "role": "judge"} for c in VALID_CONFIGS
+        ]
+        monkeypatch.setenv("LOCAL_MODEL_CONFIGS", json.dumps(configs_two_judges))
+        with pytest.raises(ValueError, match="恰好需要 1 个 judge"):
+            load_model_configs()
+
+    def test_missing_required_field(self, monkeypatch):
+        bad = [{"name": "x"}, VALID_CONFIGS[1]]
+        monkeypatch.setenv("LOCAL_MODEL_CONFIGS", json.dumps(bad))
+        with pytest.raises(ValueError):
+            load_model_configs()
 
 
-def test_config_manager_from_env(monkeypatch):
-    """测试从环境变量加载配置"""
-    import json
+class TestLoadProjectRoot:
+    def test_from_env(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("PROJECT_ROOT", str(tmp_path))
+        assert load_project_root() == tmp_path
 
-    models_json = json.dumps([{"name": "model1", "url": "https://api1.com", "key": "key1"}])
-    monkeypatch.setenv("MCP_MODELS", models_json)
-
-    manager = ConfigManager()
-    models = manager.get_models()
-    assert len(models) == 1
-    assert models[0].name == "model1"
-
-
-def test_config_manager_fallback_to_file(tmp_path, monkeypatch):
-    """测试回退到配置文件加载"""
-    # No env var
-    monkeypatch.delenv("MCP_MODELS", raising=False)
-
-    # Create config file
-    config_file = tmp_path / "config.json"
-    config_file.write_text('[{"name": "model2", "url": "https://api2.com", "key": "key2"}]')
-
-    manager = ConfigManager(config_path=str(config_file))
-    models = manager.get_models()
-    assert len(models) == 1
-    assert models[0].name == "model2"
-
-
-def test_config_manager_no_config_no_file(monkeypatch, tmp_path, capsys):
-    """测试无配置且无文件时的错误处理"""
-    monkeypatch.delenv("MCP_MODELS", raising=False)
-    manager = ConfigManager(config_path=str(tmp_path / "nonexistent.json"))
-
-    with pytest.raises(SystemExit):
-        manager.get_models()
-
-    captured = capsys.readouterr()
-    assert "配置错误" in captured.err or "缺少模型配置" in captured.err
+    def test_fallback_to_cwd(self, monkeypatch):
+        monkeypatch.delenv("PROJECT_ROOT", raising=False)
+        result = load_project_root()
+        assert result.exists()
