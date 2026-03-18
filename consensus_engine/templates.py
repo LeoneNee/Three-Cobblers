@@ -1,111 +1,62 @@
-# consensus_engine/templates.py
-"""场景模板注册表模块
-
-本模块定义了共识引擎中不同场景的提示词模板。
-每个场景都有特定的中文提示词，用于引导AI模型的输出。
-"""
-
-from typing import Dict, List
-
-# 场景模板字典
-SCENE_TEMPLATES: Dict[str, str] = {
-    "planning": """你是一个任务规划专家。请按照以下步骤进行任务拆解：
-
-1. **任务理解**：明确任务的最终目标和约束条件
-2. **任务拆解**：将复杂任务分解为可执行的子任务
-3. **优先级排序**：根据依赖关系和重要性排序
-4. **资源评估**：评估每个子任务所需的时间和资源
-5. **里程碑设定**：设定关键检查点和里程碑
-
-请以结构化的方式输出你的规划结果。""",
-    "review": """你是一个代码审查专家。请按照以下维度进行代码审查：
-
-1. **正确性**：代码逻辑是否正确，是否存在潜在的bug
-2. **可读性**：代码命名是否清晰，注释是否充分
-3. **可维护性**：代码结构是否合理，是否易于修改和扩展
-4. **性能**：是否存在性能瓶颈或优化空间
-5. **安全性**：是否存在安全漏洞或风险
-6. **测试覆盖**：是否有足够的测试用例
-
-请提供具体的改进建议和示例代码。""",
-    "arch": """你是一个系统架构设计专家。请按照以下原则进行架构设计：
-
-1. **模块化**：系统应该被分解为高内聚、低耦合的模块
-2. **可扩展性**：架构应该支持未来的功能扩展
-3. **性能考虑**：设计应该满足性能和可伸缩性要求
-4. **容错性**：系统应该具备错误处理和恢复能力
-5. **安全性**：架构应该考虑安全防护措施
-6. **技术选型**：选择合适的技术栈和工具
-
-请提供架构图和关键设计决策的说明。""",
-    "debug": """你是一个问题调试专家。请按照以下步骤进行问题诊断：
-
-1. **问题复现**：明确问题的触发条件和复现步骤
-2. **信息收集**：收集相关的日志、错误信息和环境数据
-3. **根因分析**：分析问题的根本原因，使用排除法或二分法
-4. **假设验证**：提出假设并通过实验验证
-5. **解决方案**：制定修复方案并验证其有效性
-6. **预防措施**：提出防止问题再次发生的建议
-
-请系统地分析问题并提供详细的解决路径。""",
-}
-
-# 默认模板（当请求的场景不存在时使用）
-DEFAULT_TEMPLATE: str = """你是一个AI助手，请根据用户的需求提供帮助。
-
-请确保你的回答：
-1. 准确且相关
-2. 清晰易懂
-3. 有实际价值
-
-如果你需要更多信息来回答问题，请主动询问。"""
+"""各阶段 Prompt 模板。"""
 
 
-class TemplateRegistry:
-    """场景模板注册表
+def build_proposal_prompt(
+    task: str, content: str, scene: str
+) -> tuple[str, str]:
+    """构建提案阶段的 system/user prompt。"""
+    system = (
+        "你是一位资深技术专家。请根据任务描述和上下文，"
+        "提出你的详细方案。要求结构清晰、可执行。"
+    )
+    user = (
+        f"## 任务\n{task}\n\n"
+        f"## 上下文\n{content}\n\n"
+        f"## 场景\n{scene}\n\n"
+        "请输出你的完整方案（Markdown 格式）。"
+    )
+    return system, user
 
-    提供对不同场景提示词模板的访问和管理。
-    """
 
-    def __init__(self) -> None:
-        """初始化模板注册表"""
-        self._templates = SCENE_TEMPLATES.copy()
+def build_review_prompt(
+    task: str, proposals: dict[str, str]
+) -> tuple[str, str]:
+    """构建交叉评审阶段的 system/user prompt。"""
+    system = (
+        "你是一位严谨的技术评审专家。"
+        "请对以下方案进行批判性评审，指出漏洞、安全风险或性能瓶颈。"
+    )
+    proposals_text = "\n\n".join(
+        f"### {name} 的方案\n{text}" for name, text in proposals.items()
+    )
+    user = (
+        f"## 任务\n{task}\n\n"
+        f"## 各专家提案\n{proposals_text}\n\n"
+        "请逐一评审以上方案，指出问题并给出改进建议。"
+    )
+    return system, user
 
-    def get_prompt(self, scene: str) -> str:
-        """获取指定场景的提示词模板
 
-        Args:
-            scene: 场景名称（如 "planning", "review", "arch", "debug"）
-
-        Returns:
-            该场景的提示词模板。如果场景不存在，返回默认模板。
-        """
-        return self._templates.get(scene, DEFAULT_TEMPLATE)
-
-    def get_supported_scenes(self) -> List[str]:
-        """获取所有支持的场景列表
-
-        Returns:
-            支持的场景名称列表
-        """
-        return list(self._templates.keys())
-
-    def has_scene(self, scene: str) -> bool:
-        """检查是否支持指定的场景
-
-        Args:
-            scene: 场景名称
-
-        Returns:
-            如果支持该场景返回True，否则返回False
-        """
-        return scene in self._templates
-
-    def register_template(self, scene: str, template: str) -> None:
-        """注册或更新一个场景模板
-
-        Args:
-            scene: 场景名称
-            template: 该场景的提示词模板
-        """
-        self._templates[scene] = template
+def build_synthesis_prompt(
+    task: str,
+    proposals: dict[str, str],
+    reviews: dict[str, str],
+) -> tuple[str, str]:
+    """构建汇总阶段的 system/user prompt（仅 Judge 使用）。"""
+    system = (
+        "你是最终裁判。综合所有专家的提案和评审意见，"
+        "输出一份结构化的最终共识方案（Markdown 格式）。"
+    )
+    proposals_text = "\n\n".join(
+        f"### {name} 的方案\n{text}" for name, text in proposals.items()
+    )
+    reviews_text = "\n\n".join(
+        f"### {name} 的评审\n{text}" for name, text in reviews.items()
+    )
+    user = (
+        f"## 任务\n{task}\n\n"
+        f"## 原始提案\n{proposals_text}\n\n"
+        f"## 评审意见\n{reviews_text}\n\n"
+        "请输出最终共识方案。"
+    )
+    return system, user
