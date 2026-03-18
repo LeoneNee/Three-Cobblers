@@ -33,16 +33,16 @@ class ConfigManager:
             try:
                 data = json.loads(env_config)
                 return [ModelConfig(**m) for m in data]
-            except (json.JSONDecodeError, ValidationError) as e:
-                self._print_error_and_exit(f"环境变量 MCP_MODELS 解析失败: {e}")
+            except (json.JSONDecodeError, ValidationError):
+                self._print_error_and_exit("环境变量 MCP_MODELS 格式错误，请检查 JSON 格式和字段")
 
         # 2. 回退到配置文件
         if self.config_path.exists():
             try:
                 data = json.loads(self.config_path.read_text())
                 return [ModelConfig(**m) for m in data]
-            except (json.JSONDecodeError, ValidationError) as e:
-                self._print_error_and_exit(f"配置文件 {self.config_path} 解析失败: {e}")
+            except (json.JSONDecodeError, ValidationError):
+                self._print_error_and_exit(f"配置文件 {self.config_path} 格式错误，请检查 JSON 格式和字段")
 
         # 3. 无配置可用
         self._print_config_guide_and_exit()
