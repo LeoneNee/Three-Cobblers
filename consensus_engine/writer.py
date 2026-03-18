@@ -1,11 +1,13 @@
 # consensus_engine/writer.py
 """Writer 模块 - 负责输出共识结果
 
-本模块定义了共识输出的数据结构。
-完整的 Writer 类将在 Task 6 中实现。
+本模块定义了共识输出的数据结构和结果写入器。
 """
 
+import re
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
 
@@ -41,3 +43,177 @@ class ConsensusOutput:
 
     metadata: Dict[str, object] = field(default_factory=dict)
     """额外的元数据信息"""
+
+
+# 场景到目录的映射
+SCENE_DIR_MAP = {
+    "planning": "plans",
+    "review": "reviews",
+    "arch": "architecture",
+    "debug": "debugging",
+}
+
+
+class ResultWriter:
+    """结果写入器
+
+    将共识结果写入 Markdown 文件，按场景类型组织目录结构。
+    """
+
+    def __init__(self, root_dir: str = "docs"):
+        """初始化结果写入器
+
+        Args:
+            root_dir: 输出根目录，默认为 "docs"
+        """
+        self.root_dir = Path(root_dir)
+
+    def sanitize_filename(self, task: str) -> str:
+        """清理任务名称，使其适合作为文件名
+
+        移除特殊字符，只保留字母、数字、下划线和短横线。
+
+        Args:
+            task: 原始任务名称
+
+        Returns:
+            清理后的文件名
+        """
+        # 移除或替换特殊字符
+        sanitized = re.sub(r'[^\w\s-]', '', task)
+        # 将空白字符替换为短横线
+        sanitized = re.sub(r'[\s]+', '-', sanitized)
+        # 移除连续的短横线
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # 去除首尾短横线
+        sanitized = sanitized.strip('-')
+        # 限制长度
+        if len(sanitized) > 50:
+            sanitized = sanitized[:50]
+        return sanitized
+
+    def write(
+        self,
+        scene: str,
+        task: str,
+        output: ConsensusOutput,
+    ) -> str:
+        """写入共识结果到 Markdown 文件
+
+        Args:
+            scene: 场景类型（planning, review, arch, debug）
+            task: 任务描述
+            output: 共识输出结果
+
+        Returns:
+            输出文件的绝对路径
+        """
+        # 获取场景对应的目录
+        scene_dir = SCENE_DIR_MAP.get(scene, scene)
+
+        # 创建输出目录
+        output_dir = self.root_dir / scene_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成文件名
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        sanitized_task = self.sanitize_filename(task)
+        filename = f"{timestamp}-{scene}-{sanitized_task}.md"
+
+        # 写入文件
+        output_path = output_dir / filename
+        markdown_content = self._build_markdown(scene, task, output)
+
+        output_path.write_text(markdown_content, encoding="utf-8")
+
+        return str(output_path.absolute())
+
+    def _build_markdown(
+        self,
+        scene: str,
+        task: str,
+        output: ConsensusOutput,
+    ) -> str:
+        """构建 Markdown 内容
+
+        Args:
+            scene: 场景类型
+            task: 任务描述
+            output: 共识输出结果
+
+        Returns:
+            Markdown 格式的文本
+        """
+        scene_upper = scene.upper()
+
+        # 构建各部分内容
+        parts = [
+            f"# {scene_upper} 共识报告",
+            "",
+            f"**任务**: {task}",
+            f"**时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "---",
+            "",
+            "## 原始问题",
+            "",
+            output.question,
+            "",
+            "---",
+            "",
+            "## 最终共识",
+            "",
+            output.final_answer,
+            "",
+            "---",
+            "",
+            "## 讨论摘要",
+            "",
+            output.discussion_summary,
+            "",
+            "---",
+            "",
+            "## 统计信息",
+            "",
+            f"- **参与模型数**: {output.total_models}",
+            f"- **成功模型数**: {output.successful_models}",
+        ]
+
+        # 添加元数据信息
+        if output.metadata:
+            parts.append("")
+            parts.append("## 元数据")
+            parts.append("")
+            for key, value in output.metadata.items():
+                if isinstance(value, list):
+                    value_str = ", ".join(str(v) for v in value)
+                else:
+                    value_str = str(value)
+                parts.append(f"- **{key}**: {value_str}")
+
+        # 添加提案详情（如果有）
+        if output.proposals:
+            parts.append("")
+            parts.append("---")
+            parts.append("")
+            parts.append("## 各模型提案")
+            parts.append("")
+            for model_name, proposal in output.proposals.items():
+                parts.append(f"### {model_name}")
+                parts.append("")
+                parts.append(proposal)
+                parts.append("")
+
+        # 添加评审详情（如果有）
+        if output.critiques:
+            parts.append("---")
+            parts.append("")
+            parts.append("## 交叉评审")
+            parts.append("")
+            for reviewer_name, critique in output.critiques.items():
+                parts.append(f"### {reviewer_name} 的评审")
+                parts.append("")
+                parts.append(critique)
+                parts.append("")
+
+        return "\n".join(parts)
