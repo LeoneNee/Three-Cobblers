@@ -8,7 +8,7 @@ from consensus_engine.config import ModelConfig
 class ModelClient:
     """单个模型的异步 HTTP 客户端。"""
 
-    def __init__(self, config: ModelConfig, timeout: float = 120.0):
+    def __init__(self, config: ModelConfig, timeout: float = 300.0):
         self.config = config
         self.timeout = timeout
 
