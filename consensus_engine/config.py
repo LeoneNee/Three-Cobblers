@@ -14,6 +14,7 @@ class ModelConfig:
     api_key: str
     model: str
     role: str = "participant"
+    protocol: str = "openai"  # "openai" 或 "anthropic"
 
 
 def load_model_configs() -> list[ModelConfig]:
@@ -46,6 +47,7 @@ def load_model_configs() -> list[ModelConfig]:
                 api_key=item["api_key"],
                 model=item["model"],
                 role=item.get("role", "participant"),
+                protocol=item.get("protocol", "openai"),
             )
         )
 
