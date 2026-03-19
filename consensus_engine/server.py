@@ -1,5 +1,6 @@
 """FastMCP 服务器入口。"""
 
+import os
 import sys
 from typing import Literal
 
@@ -8,6 +9,9 @@ from fastmcp import FastMCP
 from consensus_engine.config import load_model_configs, load_project_root
 from consensus_engine.orchestrator import run_debate
 from consensus_engine.writer import write_consensus
+
+# 默认冷门端口
+DEFAULT_PORT = 38517
 
 
 def create_app() -> FastMCP:
@@ -78,7 +82,14 @@ def create_app() -> FastMCP:
 
 def main():
     app = create_app()
-    app.run(transport="stdio")
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "sse":
+        port = int(os.environ.get("MCP_PORT", DEFAULT_PORT))
+        host = os.environ.get("MCP_HOST", "0.0.0.0")
+        print(f"[consensus-engine] SSE 模式启动 → {host}:{port}", file=sys.stderr)
+        app.run(transport="sse", host=host, port=port)
+    else:
+        app.run(transport="stdio")
 
 
 if __name__ == "__main__":
