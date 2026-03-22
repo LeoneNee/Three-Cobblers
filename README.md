@@ -74,15 +74,28 @@ claude mcp add consensus-engine -- python -m consensus_engine
 
 需要设置环境变量，或通过 `--env` 传入 `LOCAL_MODEL_CONFIGS`。
 
-**方式二：SSE 远程模式**
+**方式二：HTTP 远程模式（推荐）**
 
 在服务器上部署后：
 
-```bash
-# 无验证模式
-claude mcp add --transport sse consensus-engine http://your-server:38517/sse
+```json
+{
+  "mcpServers": {
+    "consensus-engine": {
+      "type": "http",
+      "url": "http://175.24.134.13:38517",
+      "headers": {
+        "Authorization": "Bearer your-secret-api-key-here"
+      }
+    }
+  }
+}
+```
 
-# 验证模式（需要在 mcp.json 中配置 headers）
+**方式三：SSE 远程模式**
+
+```bash
+claude mcp add --transport sse consensus-engine http://your-server:38517/sse
 ```
 
 如果服务器启用了 API Key 验证，需要在 `.kiro/settings/mcp.json` 中添加：

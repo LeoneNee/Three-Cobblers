@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/Three-Cobblers
-Environment=MCP_TRANSPORT=sse
+Environment=MCP_TRANSPORT=http
 Environment=MCP_PORT=38517
 Environment=MCP_HOST=0.0.0.0
 Environment=MCP_API_KEY=your-secret-api-key-here

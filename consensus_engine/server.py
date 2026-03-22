@@ -96,7 +96,12 @@ def create_app() -> FastMCP:
 def main():
     app = create_app()
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
-    if transport == "sse":
+    if transport == "http":
+        port = int(os.environ.get("MCP_PORT", DEFAULT_PORT))
+        host = os.environ.get("MCP_HOST", "0.0.0.0")
+        print(f"[consensus-engine] HTTP 模式启动 → {host}:{port}", file=sys.stderr)
+        app.run(transport="http", host=host, port=port)
+    elif transport == "sse":
         port = int(os.environ.get("MCP_PORT", DEFAULT_PORT))
         host = os.environ.get("MCP_HOST", "0.0.0.0")
         print(f"[consensus-engine] SSE 模式启动 → {host}:{port}", file=sys.stderr)
