@@ -5,8 +5,8 @@ import sys
 from typing import Literal
 
 from fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.server.dependencies import get_http_headers
 
 from consensus_engine.config import load_model_configs
 from consensus_engine.orchestrator import run_debate
@@ -15,23 +15,24 @@ from consensus_engine.orchestrator import run_debate
 DEFAULT_PORT = 38517
 
 
-class AuthMiddleware(BaseHTTPMiddleware):
+class AuthMiddleware(Middleware):
     """API Key 验证中间件。"""
 
-    async def dispatch(self, request, call_next):
-        api_key = os.environ.get("MCP_API_KEY")
-        if not api_key:
-            return await call_next(request)
+    def __init__(self, required_key: str):
+        self.required_key = required_key
 
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return JSONResponse({"error": "Missing or invalid Authorization header"}, status_code=401)
+    async def on_request(self, context: MiddlewareContext, call_next):
+        headers = get_http_headers()
+        auth_header = headers.get("authorization", "")
+
+        if not auth_header.startswith("Bearer "):
+            raise PermissionError("Missing or invalid Authorization header")
 
         token = auth_header[7:]
-        if token != api_key:
-            return JSONResponse({"error": "Invalid API key"}, status_code=403)
+        if token != self.required_key:
+            raise PermissionError("Invalid API key")
 
-        return await call_next(request)
+        return await call_next(context)
 
 
 def create_app() -> FastMCP:
@@ -46,6 +47,14 @@ def create_app() -> FastMCP:
     )
 
     mcp = FastMCP("consensus-engine")
+
+    # 添加 API Key 验证中间件
+    api_key = os.environ.get("MCP_API_KEY")
+    if api_key:
+        print(f"[consensus-engine] API Key 验证已启用", file=sys.stderr)
+        mcp.add_middleware(AuthMiddleware(required_key=api_key))
+    else:
+        print(f"[consensus-engine] 警告：未设置 MCP_API_KEY，服务无验证", file=sys.stderr)
 
     @mcp.tool()
     async def run_consensus_debate(
@@ -90,14 +99,6 @@ def main():
     if transport == "sse":
         port = int(os.environ.get("MCP_PORT", DEFAULT_PORT))
         host = os.environ.get("MCP_HOST", "0.0.0.0")
-
-        api_key = os.environ.get("MCP_API_KEY")
-        if api_key:
-            print(f"[consensus-engine] API Key 验证已启用", file=sys.stderr)
-            app.app.add_middleware(AuthMiddleware)
-        else:
-            print(f"[consensus-engine] 警告：未设置 MCP_API_KEY，服务无验证", file=sys.stderr)
-
         print(f"[consensus-engine] SSE 模式启动 → {host}:{port}", file=sys.stderr)
         app.run(transport="sse", host=host, port=port)
     else:
