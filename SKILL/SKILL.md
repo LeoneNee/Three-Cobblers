@@ -11,7 +11,7 @@ description: |
   
   前置条件：
   - 环境变量 LOCAL_MODEL_CONFIGS（JSON 格式的模型配置数组）
-  - Python 3.10+ 环境
+  - Python 3.13+ 环境
   - 已安装 httpx 库
 ---
 
