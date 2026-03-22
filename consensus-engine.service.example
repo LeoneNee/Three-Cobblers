@@ -9,6 +9,7 @@ WorkingDirectory=/home/ubuntu/Three-Cobblers
 Environment=MCP_TRANSPORT=sse
 Environment=MCP_PORT=38517
 Environment=MCP_HOST=0.0.0.0
+Environment=MCP_API_KEY=your-secret-api-key-here
 Environment=PROJECT_ROOT=/home/ubuntu/Three-Cobblers
 Environment="LOCAL_MODEL_CONFIGS=[{\"name\":\"minimax-m2.7\",\"endpoint\":\"https://api.minimaxi.com/v1/chat/completions\",\"api_key\":\"your-minimax-api-key\",\"model\":\"minimax-m2.7\",\"role\":\"participant\",\"protocol\":\"openai\"},{\"name\":\"glm-5\",\"endpoint\":\"https://open.bigmodel.cn/api/anthropic/v1\",\"api_key\":\"your-glm-api-key\",\"model\":\"glm-5\",\"role\":\"participant\",\"protocol\":\"anthropic\"},{\"name\":\"kimi-k2.5\",\"endpoint\":\"https://api.kimi.com/coding/v1\",\"api_key\":\"your-kimi-api-key\",\"model\":\"kimi-k2.5\",\"role\":\"judge\",\"protocol\":\"anthropic\"}]"
 ExecStart=/home/ubuntu/Three-Cobblers/.venv/bin/python -m consensus_engine.server

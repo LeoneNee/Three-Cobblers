@@ -79,7 +79,26 @@ claude mcp add consensus-engine -- python -m consensus_engine
 在服务器上部署后：
 
 ```bash
+# 无验证模式
 claude mcp add --transport sse consensus-engine http://your-server:38517/sse
+
+# 验证模式（需要在 mcp.json 中配置 headers）
+```
+
+如果服务器启用了 API Key 验证，需要在 `.kiro/settings/mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "consensus-engine": {
+      "transport": "sse",
+      "url": "http://your-server:38517/sse",
+      "headers": {
+        "Authorization": "Bearer your-secret-api-key-here"
+      }
+    }
+  }
+}
 ```
 
 ### 5. 在对话中使用
@@ -120,7 +139,7 @@ pip install -e .
 ```bash
 # 复制示例文件并填入真实 API Key
 cp consensus-engine.service.example /etc/systemd/system/consensus-engine.service
-# 编辑填入你的 API Key
+# 编辑填入你的 API Key 和 MCP_API_KEY
 sudo nano /etc/systemd/system/consensus-engine.service
 
 # 启动服务
@@ -131,9 +150,19 @@ sudo systemctl start consensus-engine
 
 ### 3. 验证
 
+**无验证模式（未设置 MCP_API_KEY）：**
 ```bash
 curl -I http://localhost:38517/sse
 # 应返回 HTTP/1.1 200 OK
+```
+
+**验证模式（已设置 MCP_API_KEY）：**
+```bash
+# 无 token 会返回 401
+curl -I http://localhost:38517/sse
+
+# 带正确 token 返回 200
+curl -H "Authorization: Bearer your-secret-api-key-here" -I http://localhost:38517/sse
 ```
 
 ## MCP 工具接口
