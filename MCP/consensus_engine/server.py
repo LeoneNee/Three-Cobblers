@@ -6,8 +6,8 @@ from typing import Literal
 
 import uvicorn
 from fastmcp import FastMCP
-from fastmcp.server.middleware import Middleware, MiddlewareContext
-from fastmcp.server.dependencies import get_http_headers
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from consensus_engine.config import load_model_configs
@@ -17,24 +17,36 @@ from consensus_engine.orchestrator import run_debate
 DEFAULT_PORT = 38517
 
 
-class AuthMiddleware(Middleware):
+class AuthMiddleware(BaseHTTPMiddleware):
     """API Key 验证中间件。"""
 
-    def __init__(self, required_key: str):
+    def __init__(self, app, required_key: str):
+        super().__init__(app)
         self.required_key = required_key
 
-    async def on_request(self, context: MiddlewareContext, call_next):
-        headers = get_http_headers()
-        auth_header = headers.get("authorization", "")
+    async def dispatch(self, request: Request, call_next):
+        auth_header = request.headers.get("authorization", "")
+
+        # 尝试从 URL 参数获取（用于 SSE 模式）
+        if not auth_header.startswith("Bearer "):
+            token_param = request.query_params.get("token", "")
+            if token_param:
+                auth_header = f"Bearer {token_param}"
 
         if not auth_header.startswith("Bearer "):
-            raise PermissionError("Missing or invalid Authorization header")
+            return JSONResponse(
+                {"error": "Missing or invalid Authorization header"},
+                status_code=401
+            )
 
         token = auth_header[7:]
         if token != self.required_key:
-            raise PermissionError("Invalid API key")
+            return JSONResponse(
+                {"error": "Invalid API key"},
+                status_code=403
+            )
 
-        return await call_next(context)
+        return await call_next(request)
 
 
 def create_app() -> FastMCP:
@@ -49,14 +61,6 @@ def create_app() -> FastMCP:
     )
 
     mcp = FastMCP("consensus-engine")
-
-    # 添加 API Key 验证中间件
-    api_key = os.environ.get("MCP_API_KEY")
-    if api_key:
-        print(f"[consensus-engine] API Key 验证已启用", file=sys.stderr)
-        mcp.add_middleware(AuthMiddleware(required_key=api_key))
-    else:
-        print(f"[consensus-engine] 警告：未设置 MCP_API_KEY，服务无验证", file=sys.stderr)
 
     @mcp.tool()
     async def run_consensus_debate(
@@ -103,16 +107,32 @@ def create_app() -> FastMCP:
 # 创建 FastMCP 实例
 mcp = create_app()
 
-# 创建 ASGI 应用，使用标准 MCP HTTP 传输
+# 获取 API Key
+api_key = os.environ.get("MCP_API_KEY")
+
+# 创建 ASGI 应用
 app = mcp.http_app()
+
+# 添加认证中间件（如果设置了 API Key）
+if api_key:
+    print(f"[consensus-engine] API Key 验证已启用", file=sys.stderr)
+    app.add_middleware(AuthMiddleware, required_key=api_key)
+else:
+    print(f"[consensus-engine] 警告：未设置 MCP_API_KEY，服务无验证", file=sys.stderr)
 
 
 def main():
     """启动 HTTP 服务器。"""
     port = int(os.environ.get("MCP_PORT", DEFAULT_PORT))
     host = os.environ.get("MCP_HOST", "0.0.0.0")
-    print(f"[consensus-engine] MCP HTTP 服务启动 → {host}:{port}/mcp", file=sys.stderr)
-    uvicorn.run(app, host=host, port=port)
+    transport = os.environ.get("MCP_TRANSPORT", "http")
+
+    if transport == "sse":
+        print(f"[consensus-engine] MCP SSE 服务启动 → {host}:{port}/sse", file=sys.stderr)
+        mcp.run(transport="sse", host=host, port=port)
+    else:
+        print(f"[consensus-engine] MCP HTTP 服务启动 → {host}:{port}/mcp", file=sys.stderr)
+        uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
